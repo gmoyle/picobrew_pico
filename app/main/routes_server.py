@@ -28,8 +28,8 @@ def health():
 
 @main.route('/restart_server')
 def restart_server():
-    # git pull & install any updated requirements
-    os.system('cd {}; git pull; pip3 install -r requirements.txt'.format(base_path()))
+    # git pull from fork (origin main) & install any updated requirements
+    os.system('cd {}; git pull origin main; pip3 install -r requirements.txt'.format(base_path()))
     # TODO: Close file handles for open sessions?
 
     if platform() == "RaspberryPi":
@@ -354,9 +354,9 @@ def about():
     gitSha = subprocess.check_output("cd {}; git rev-parse --short HEAD".format(base_path()), shell=True)
     gitSha = gitSha.decode("utf-8")
 
-    # query latest git remote sha
+    # query latest git remote sha (fork's main)
     try:
-        latestMasterSha = subprocess.check_output("cd {}; git fetch origin && git rev-parse --short origin/master".format(base_path()), shell=True)
+        latestMasterSha = subprocess.check_output("cd {}; git fetch origin && git rev-parse --short origin/main".format(base_path()), shell=True)
         latestMasterSha = latestMasterSha.decode("utf-8")
     except Exception:
         latestMasterSha = "unavailable (check network)"
