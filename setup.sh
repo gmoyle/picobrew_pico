@@ -237,6 +237,7 @@ show_usage() {
     echo "  -t, --test          Run tests after setup"
     echo "  -s, --setup-only    Only setup dependencies, don't start server"
     echo "  -v, --verbose       Verbose output"
+    echo "  --import-community  Prompt to import PicoBrew community recipes (HTML snapshots)"
     echo ""
     echo "Examples:"
     echo "  $0                    # Auto-setup and start server"
@@ -282,6 +283,7 @@ main() {
     RUN_TESTS=false
     SETUP_ONLY=false
     VERBOSE=false
+    IMPORT_COMMUNITY=false
     
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -307,6 +309,10 @@ main() {
                 ;;
             -v|--verbose)
                 VERBOSE=true
+                shift
+                ;;
+            --import-community)
+                IMPORT_COMMUNITY=true
                 shift
                 ;;
             *)
@@ -388,6 +394,108 @@ main() {
 
     # Start the server in background, verify health, run smoke, and open browser
     start_server_bg_and_verify "$PORT" "$HOST"
+
+    # Offer to import bundled snapshot recipes if present
+    if [[ -d "recipes_snapshot/zseries" ]]; then
+        echo -n "Import bundled Z-series recipes snapshot into server library? [y/N]: "
+        read -r reply
+        if [[ "$reply" == "y" || "$reply" == "Y" ]]; then
+            mkdir -p app/recipes/zseries
+            cp -n recipes_snapshot/zseries/*.json app/recipes/zseries/ || true
+            print_success "Imported Z-series snapshot recipes."
+        else
+            print_status "Skipping bundled Z-series import."
+        fi
+    fi
+
+    # Offer to import user's Z-series recipes from PicoBrew (if site reachable)
+    if command_exists curl; then
+        if curl -sS -k --max-time 5 https://137.117.17.70/ >/dev/null 2>&1; then
+            echo -n "Import YOUR Z-series recipes from PicoBrew now? (requires Product ID token) [y/N]: "
+            read -r reply
+            if [[ "$reply" == "y" || "$reply" == "Y" ]]; then
+                echo -n "Enter your Z-series Product ID token: "
+                read -r Z_TOKEN
+                if [[ -n "$Z_TOKEN" ]]; then
+                    create_and_use_venv
+                    if python scripts/fetch_zseries_all.py --token "$Z_TOKEN"; then
+                        print_success "Imported your Z-series recipes into app/recipes/zseries/"
+                    else
+                        print_warning "Failed to import Z-series recipes. You can retry later via: python scripts/fetch_zseries_all.py --token YOUR_TOKEN"
+                    fi
+                else
+                    print_warning "No token provided, skipping user recipe import."
+                fi
+            else
+                print_status "Skipping user Z-series recipe import."
+            fi
+        else
+            print_status "PicoBrew vendor site not reachable, skipping user Z-series import."
+        fi
+
+        # Offer to import user's Zymatic recipes (requires GUID and Product ID)
+        if curl -sS -k --max-time 5 http://137.117.17.70/ [0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m [0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m [0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m; then
+            echo -n "Import YOUR Zymatic recipes? (requires GUID and Product ID) [y/N]: "
+            read -r reply
+            if [[ "$reply" == "y" || "$reply" == "Y" ]]; then
+                echo -n "Enter your Zymatic GUID: "
+                read -r ZY_GUID
+                echo -n "Enter your Zymatic Product ID: "
+                read -r ZY_PID
+                if [[ -n "$ZY_GUID" ]] && [[ -n "$ZY_PID" ]]; then
+                    create_and_use_venv
+                    if python scripts/import_zymatic_user.py --guid "$ZY_GUID" --product-id "$ZY_PID"; then
+                        print_success "Imported your Zymatic recipes into app/recipes/zymatic/"
+                    else
+                        print_warning "Failed to import Zymatic recipes. You can retry later via: python scripts/import_zymatic_user.py --guid GUID --product-id PID"
+                    fi
+                else
+                    print_warning "GUID or Product ID missing, skipping Zymatic import."
+                fi
+            else
+                print_status "Skipping user Zymatic recipe import."
+            fi
+        fi
+
+        # Offer to import a Pico recipe by RFID (requires UID and RFID)
+        echo -n "Import a Pico (Pico S/C/Pro) recipe by RFID now? [y/N]: "
+        read -r reply
+        if [[ "$reply" == "y" || "$reply" == "Y" ]]; then
+            echo -n "Enter your Pico device UID (32 chars): "
+            read -r PICO_UID
+            echo -n "Enter PicoPak RFID (14 chars): "
+            read -r PICO_RFID
+            if [[ -n "$PICO_UID" ]] && [[ -n "$PICO_RFID" ]]; then
+                create_and_use_venv
+                if python scripts/import_pico_by_rfid.py --uid "$PICO_UID" --rfid "$PICO_RFID"; then
+                    print_success "Imported Pico recipe into app/recipes/pico/"
+                else
+                    print_warning "Failed to import Pico recipe."
+                fi
+            else
+                print_warning "UID or RFID missing, skipping Pico import."
+            fi
+        else
+            print_status "Skipping Pico recipe import."
+        fi
+    fi
+
+    # Prompt to import PicoBrew community recipes (HTML snapshots)
+    if [[ "$IMPORT_COMMUNITY" == "true" ]]; then
+        echo -n "Do you want to fetch the PicoBrew community recipe library locally? [y/N]: "
+        read -r reply
+        if [[ "$reply" == "y" || "$reply" == "Y" ]]; then
+            print_status "Fetching PicoBrew public recipes (this may take a while)..."
+            create_and_use_venv
+            if python scripts/fetch_public_recipes.py; then
+                print_success "Community recipes snapshot saved to app/recipes/public_html"
+            else
+                print_warning "Failed to fetch community recipes. You can retry later via: python scripts/fetch_public_recipes.py"
+            fi
+        else
+            print_status "Skipping community recipe import."
+        fi
+    fi
 
     # Optional smoke test if script exists
     if [[ -f "scripts/smoke.sh" ]]; then

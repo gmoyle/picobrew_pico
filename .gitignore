@@ -14,6 +14,9 @@ app/sessions/*/*/*
 app/recipes/*.zip
 app/sessions/*.zip
 
+# allow committed snapshots of recipes
+!recipes_snapshot/
+
 scripts/docker/nginx/certs/*
 
 # terraform
