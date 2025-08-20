@@ -98,6 +98,15 @@ chmod +x setup.sh
 - The script checks for both `pip` and `pip3`
 - Install pip: `python3 -m ensurepip --upgrade`
 
+## Importing Snapshot Recipes
+
+If this repository includes a recipes_snapshot directory, you can import them after install:
+
+```bash
+# Z-series snapshot import
+cp -R recipes_snapshot/zseries/* app/recipes/zseries/
+```
+
 ### Smoke Test Script
 You can run the smoke test manually at any time:
 

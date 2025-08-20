@@ -395,6 +395,19 @@ main() {
     # Start the server in background, verify health, run smoke, and open browser
     start_server_bg_and_verify "$PORT" "$HOST"
 
+    # Offer to import bundled snapshot recipes if present
+    if [[ -d "recipes_snapshot/zseries" ]]; then
+        echo -n "Import bundled Z-series recipes snapshot into server library? [y/N]: "
+        read -r reply
+        if [[ "$reply" == "y" || "$reply" == "Y" ]]; then
+            mkdir -p app/recipes/zseries
+            cp -n recipes_snapshot/zseries/*.json app/recipes/zseries/ || true
+            print_success "Imported Z-series snapshot recipes."
+        else
+            print_status "Skipping bundled Z-series import."
+        fi
+    fi
+
     # Prompt to import PicoBrew community recipes (HTML snapshots)
     if [[ "$IMPORT_COMMUNITY" == "true" ]]; then
         echo -n "Do you want to fetch the PicoBrew community recipe library locally? [y/N]: "

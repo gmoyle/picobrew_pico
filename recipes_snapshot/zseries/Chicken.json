@@ -1,0 +1,22 @@
+{
+    "clean": false,
+    "id": 153839,
+    "name": "Chicken",
+    "start_water": 1.21,
+    "steps": [
+        {
+            "drain_time": 0,
+            "location": "PassThru",
+            "name": "Heat Water",
+            "step_time": 0,
+            "temperature": 145
+        },
+        {
+            "drain_time": 5,
+            "location": "Mash",
+            "name": "Cook",
+            "step_time": 120,
+            "temperature": 145
+        }
+    ]
+}

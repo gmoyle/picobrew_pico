@@ -1,0 +1,99 @@
+{
+    "clean": false,
+    "id": 153800,
+    "name": "Rye-Licious Rye",
+    "start_water": 13.1,
+    "steps": [
+        {
+            "drain_time": 0,
+            "location": "PassThru",
+            "name": "Heat to Dough In",
+            "step_time": 0,
+            "temperature": 113
+        },
+        {
+            "drain_time": 8,
+            "location": "Mash",
+            "name": "Dough In",
+            "step_time": 20,
+            "temperature": 113
+        },
+        {
+            "drain_time": 8,
+            "location": "Mash",
+            "name": "Mash 1",
+            "step_time": 20,
+            "temperature": 113
+        },
+        {
+            "drain_time": 0,
+            "location": "PassThru",
+            "name": "Heat to Mash 2",
+            "step_time": 0,
+            "temperature": 152
+        },
+        {
+            "drain_time": 8,
+            "location": "Mash",
+            "name": "Mash 2",
+            "step_time": 60,
+            "temperature": 152
+        },
+        {
+            "drain_time": 0,
+            "location": "PassThru",
+            "name": "Heat to Mash Out",
+            "step_time": 0,
+            "temperature": 185
+        },
+        {
+            "drain_time": 8,
+            "location": "Mash",
+            "name": "Mash Out",
+            "step_time": 15,
+            "temperature": 185
+        },
+        {
+            "drain_time": 0,
+            "location": "PassThru",
+            "name": "Heat to Boil",
+            "step_time": 0,
+            "temperature": 207
+        },
+        {
+            "drain_time": 0,
+            "location": "Adjunct1",
+            "name": "Boil Adjunct 1",
+            "step_time": 60,
+            "temperature": 207
+        },
+        {
+            "drain_time": 0,
+            "location": "PassThru",
+            "name": "Cool to Whirlpoo...",
+            "step_time": 0,
+            "temperature": 175
+        },
+        {
+            "drain_time": 5,
+            "location": "Adjunct2",
+            "name": "Whirlpool Step",
+            "step_time": 15,
+            "temperature": 175
+        },
+        {
+            "drain_time": 0,
+            "location": "Pause",
+            "name": "Connect Chiller",
+            "step_time": 0,
+            "temperature": 73
+        },
+        {
+            "drain_time": 10,
+            "location": "PassThru",
+            "name": "Chill",
+            "step_time": 10,
+            "temperature": 73
+        }
+    ]
+}
