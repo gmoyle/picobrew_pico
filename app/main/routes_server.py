@@ -5,7 +5,7 @@ import subprocess
 import sys
 import traceback
 import zipfile
-from flask import current_app, make_response, request, redirect, send_file
+from flask import current_app, make_response, request, redirect, send_file, jsonify
 from threading import Thread
 from time import sleep
 
@@ -15,6 +15,17 @@ from .frontend_common import platform, render_template_with_defaults, system_inf
 
 
 # -------- Routes --------
+@main.route('/health')
+def health():
+    try:
+        info = {
+            'status': 'ok',
+            'version': current_app.config.get('SERVER_CONFIG', {}).get('version', 'unknown')
+        }
+        return jsonify(info), 200
+    except Exception:
+        return jsonify({'status': 'error'}), 500
+
 @main.route('/restart_server')
 def restart_server():
     # git pull & install any updated requirements

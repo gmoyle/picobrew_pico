@@ -48,27 +48,32 @@ detect_os() {
     echo $OS
 }
 
+# Function to create and activate virtual environment
+create_and_use_venv() {
+    print_status "Ensuring Python virtual environment (.venv) exists..."
+    if [[ ! -d ".venv" ]]; then
+        python3 -m venv .venv
+        print_success "Created virtual environment at .venv"
+    fi
+    # shellcheck disable=SC1091
+    source .venv/bin/activate
+    print_success "Activated virtual environment"
+}
+
 # Function to install Python dependencies
 install_python_deps() {
-    print_status "Installing Python dependencies..."
-    
-    if command_exists pip3; then
-        PIP_CMD="pip3"
-    elif command_exists pip; then
-        PIP_CMD="pip"
-    else
-        print_error "Neither pip3 nor pip found. Please install Python and pip first."
-        exit 1
-    fi
-    
-    # Upgrade pip if needed
+    print_status "Installing Python dependencies into venv..."
+
+    create_and_use_venv
+
+    # Upgrade pip
     print_status "Upgrading pip..."
-    $PIP_CMD install --upgrade pip
-    
-    # Install requirements
-    print_status "Installing requirements from requirements.txt..."
-    $PIP_CMD install -r requirements.txt
-    
+    python -m pip install --upgrade pip
+
+    # Install requirements and pytest
+    print_status "Installing requirements from requirements.txt and pytest..."
+    python -m pip install -r requirements.txt pytest
+
     print_success "Python dependencies installed successfully!"
 }
 
@@ -147,24 +152,26 @@ find_available_port() {
     echo $port
 }
 
-# Function to start server
+# Function to start server (foreground)
 start_server() {
     local port=$1
     local host=$2
-    
+
+    create_and_use_venv
+
     print_status "Starting PicoBrew server on $host:$port..."
-    
+
     # Check if we need sudo for the port
     if [[ $port -eq 80 ]] && [[ "$EUID" -ne 0 ]]; then
         print_warning "Port 80 requires root privileges. Using port $port instead."
         port=$(find_available_port 8080)
     fi
-    
+
     print_status "Server will be available at: http://$host:$port"
     print_status "Press Ctrl+C to stop the server"
-    
+
     # Start the server
-    if python3 server.py "$host" "$port"; then
+    if python server.py "$host" "$port"; then
         print_success "Server started successfully!"
     else
         print_error "Failed to start server"
@@ -172,28 +179,50 @@ start_server() {
     fi
 }
 
+# Start server in background, wait for health, then open browser
+start_server_bg_and_verify() {
+    local port=$1
+    local host=$2
+
+    create_and_use_venv
+
+    print_status "Starting PicoBrew server in background on $host:$port..."
+
+    # Check if we need sudo for the port
+    if [[ $port -eq 80 ]] && [[ "$EUID" -ne 0 ]]; then
+        print_warning "Port 80 requires root privileges. Using port $port instead."
+        port=$(find_available_port 8080)
+    fi
+
+    # Start background
+    nohup python server.py "$host" "$port" > server.out 2>&1 & echo $! > server.pid
+    sleep 1
+
+    # Wait for health endpoint
+    local health_url="http://$host:$port/health"
+    print_status "Waiting for server health at $health_url ..."
+    for i in {1..30}; do
+        if curl -sSf "$health_url" >/dev/null 2>&1; then
+            print_success "Server is healthy!"
+            break
+        fi
+        sleep 1
+    done
+
+    # Open browser
+    open_browser "$host" "$port"
+}
+
 # Function to run tests
 run_tests() {
-    print_status "Running tests to verify our fixes..."
-    
-    # Check if pytest is available
-    if command_exists pytest; then
-        print_status "Running unit tests..."
-        if python3 -m pytest tests/unit/test_thread_safety.py -v; then
-            print_success "Unit tests passed!"
-        else
-            print_warning "Some unit tests failed. This might indicate an issue."
-        fi
+    print_status "Running tests to verify installation..."
+
+    create_and_use_venv
+
+    if python -m pytest tests/unit -q; then
+        print_success "Unit tests passed!"
     else
-        print_warning "pytest not found. Skipping unit tests."
-    fi
-    
-    # Run our manual test script if server is running
-    if [[ -f "scripts/test_race_conditions.py" ]]; then
-        print_status "Testing race condition fixes..."
-        print_status "Note: This requires the server to be running in another terminal"
-        print_status "You can run this manually after starting the server:"
-        echo "    python3 scripts/test_race_conditions.py http://localhost:$PORT"
+        print_warning "Some unit tests failed. This might indicate an issue."
     fi
 }
 
@@ -214,6 +243,35 @@ show_usage() {
     echo "  $0 -p 8080           # Start on port 8080"
     echo "  $0 -s                # Setup only, don't start server"
     echo "  $0 -t                # Setup, start server, and run tests"
+}
+
+# Open default browser to the server URL
+open_browser() {
+    local host=$1
+    local port=$2
+    local browse_host=$host
+    # Prefer localhost for 0.0.0.0 to avoid blank pages in some browsers
+    if [[ "$host" == "0.0.0.0" ]]; then
+        browse_host="localhost"
+    fi
+    local url="http://$browse_host:$port"
+
+    OS=$(detect_os)
+    print_status "Attempting to open web browser to $url ..."
+    case "$OS" in
+        macos)
+            command_exists open && open "$url" || print_warning "Could not open browser automatically."
+            ;;
+        linux)
+            command_exists xdg-open && xdg-open "$url" || print_warning "Could not open browser automatically."
+            ;;
+        windows)
+            command_exists start && start "$url" || print_warning "Could not open browser automatically."
+            ;;
+        *)
+            print_warning "Unknown OS; please open $url manually."
+            ;;
+    esac
 }
 
 # Main script
@@ -327,9 +385,21 @@ main() {
     if [[ "$RUN_TESTS" == "true" ]]; then
         run_tests
     fi
-    
-    # Start the server
-    start_server "$PORT" "$HOST"
+
+    # Start the server in background, verify health, run smoke, and open browser
+    start_server_bg_and_verify "$PORT" "$HOST"
+
+    # Optional smoke test if script exists
+    if [[ -f "scripts/smoke.sh" ]]; then
+        print_status "Running smoke test script..."
+        if bash scripts/smoke.sh "http://$HOST:$PORT" "12345678901234567890123456789012"; then
+            print_success "Smoke tests passed!"
+        else
+            print_warning "Smoke tests encountered issues. Check server.out for details."
+        fi
+    fi
+
+    print_success "Setup complete. Server running at http://$HOST:$PORT"
 }
 
 # Run main function with all arguments

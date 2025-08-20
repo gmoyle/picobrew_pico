@@ -72,7 +72,8 @@ class TestThreadSafety(unittest.TestCase):
     
     def test_session_restore_lock_exists(self):
         """Test that the session restore lock exists and is a threading.Lock"""
-        self.assertIsInstance(session_restore_lock, threading.Lock)
+        # threading.Lock is a factory; compare against the concrete lock type
+        self.assertIsInstance(session_restore_lock, type(threading.Lock()))
     
     def test_concurrent_session_operations(self):
         """Test that concurrent operations on different UIDs don't interfere"""
