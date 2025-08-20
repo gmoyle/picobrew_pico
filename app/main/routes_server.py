@@ -356,14 +356,16 @@ def about():
 
     # query latest git remote sha (fork's main)
     try:
-        latestMasterSha = subprocess.check_output("cd {}; git fetch origin && git rev-parse --short origin/main".format(base_path()), shell=True)
+        # Ensure fetchspec includes all branches and origin/HEAD points to main
+        subprocess.check_output("cd {}; git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*' && git remote set-head origin -a".format(base_path()), shell=True)
+        latestMasterSha = subprocess.check_output("cd {}; git fetch origin --prune && git rev-parse --short origin/main".format(base_path()), shell=True)
         latestMasterSha = latestMasterSha.decode("utf-8")
     except Exception:
         latestMasterSha = "unavailable (check network)"
 
     # query for local file changes
     try:
-        localChanges = subprocess.check_output("cd {}; git fetch origin; git --no-pager diff --name-only".format(base_path()), shell=True)
+        localChanges = subprocess.check_output("cd {}; git fetch origin --prune; git --no-pager diff --name-only".format(base_path()), shell=True)
         localChanges = localChanges.decode("utf-8").strip()
     except Exception:
         localChanges = "unavailable (check network)"
