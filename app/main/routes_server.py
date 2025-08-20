@@ -28,8 +28,8 @@ def health():
 
 @main.route('/restart_server')
 def restart_server():
-    # git pull from fork (origin main) & install any updated requirements
-    os.system('cd {}; git pull origin main; pip3 install -r requirements.txt'.format(base_path()))
+    # git pull from release branch (fork) and install any updated requirements
+    os.system('cd {}; git pull origin release; pip3 install -r requirements.txt'.format(base_path()))
     # TODO: Close file handles for open sessions?
 
     if platform() == "RaspberryPi":
@@ -354,18 +354,28 @@ def about():
     gitSha = subprocess.check_output("cd {}; git rev-parse --short HEAD".format(base_path()), shell=True)
     gitSha = gitSha.decode("utf-8")
 
-    # query latest git remote sha (fork's main)
+    # query latest release and branch info (fork's release)
     try:
         # Ensure fetchspec includes all branches and origin/HEAD points to main
         subprocess.check_output("cd {}; git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*' && git remote set-head origin -a".format(base_path()), shell=True)
-        latestMasterSha = subprocess.check_output("cd {}; git fetch origin --prune && git rev-parse --short origin/main".format(base_path()), shell=True)
-        latestMasterSha = latestMasterSha.decode("utf-8")
+        # Fetch branches and tags
+        subprocess.check_output("cd {}; git fetch origin --tags --prune".format(base_path()), shell=True)
+        # Latest tag by creation date
+        latestTag = subprocess.check_output("cd {}; git tag --list --sort=-creatordate | head -n 1".format(base_path()), shell=True).decode("utf-8").strip()
+        # Current tag (if HEAD points to a tag)
+        try:
+            currentTag = subprocess.check_output("cd {}; git describe --tags --abbrev=0 --exact-match".format(base_path()), shell=True).decode("utf-8").strip()
+        except Exception:
+            currentTag = None
+        latestReleaseSha = subprocess.check_output("cd {}; git rev-parse --short origin/release".format(base_path()), shell=True).decode("utf-8").strip()
     except Exception:
-        latestMasterSha = "unavailable (check network)"
+        latestTag = None
+        currentTag = None
+        latestReleaseSha = "unavailable (check network)"
 
-    # query for local file changes
+    # query for local file changes vs release
     try:
-        localChanges = subprocess.check_output("cd {}; git fetch origin --prune; git --no-pager diff --name-only".format(base_path()), shell=True)
+        localChanges = subprocess.check_output("cd {}; git fetch origin --prune; git --no-pager diff --name-only origin/release...HEAD".format(base_path()), shell=True)
         localChanges = localChanges.decode("utf-8").strip()
     except Exception:
         localChanges = "unavailable (check network)"
@@ -383,6 +393,7 @@ def about():
     image_variant = os.environ.get("IMG_VARIANT", None)
     image_version = None if image_release is None else f"{image_release}_{image_variant}"
 
-    return render_template_with_defaults('about.html', git_version=gitSha, latest_git_sha=latestMasterSha, local_changes=localChanges,
+    return render_template_with_defaults('about.html', git_version=gitSha, latest_git_sha=latestReleaseSha, local_changes=localChanges,
                            server_info=server_information, os_release=system_info,
-                           raspberrypi_info=pinout, raspberrypi_image=image_version)
+                           raspberrypi_info=pinout, raspberrypi_image=image_version,
+                           latest_tag=latestTag, current_tag=currentTag)
