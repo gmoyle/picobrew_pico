@@ -408,6 +408,32 @@ main() {
         fi
     fi
 
+    # Offer to import user's Z-series recipes from PicoBrew (if site reachable)
+    if command_exists curl; then
+        if curl -sS -k --max-time 5 https://137.117.17.70/ >/dev/null 2>&1; then
+            echo -n "Import YOUR Z-series recipes from PicoBrew now? (requires Product ID token) [y/N]: "
+            read -r reply
+            if [[ "$reply" == "y" || "$reply" == "Y" ]]; then
+                echo -n "Enter your Z-series Product ID token: "
+                read -r Z_TOKEN
+                if [[ -n "$Z_TOKEN" ]]; then
+                    create_and_use_venv
+                    if python scripts/fetch_zseries_all.py --token "$Z_TOKEN"; then
+                        print_success "Imported your Z-series recipes into app/recipes/zseries/"
+                    else
+                        print_warning "Failed to import Z-series recipes. You can retry later via: python scripts/fetch_zseries_all.py --token YOUR_TOKEN"
+                    fi
+                else
+                    print_warning "No token provided, skipping user recipe import."
+                fi
+            else
+                print_status "Skipping user Z-series recipe import."
+            fi
+        else
+            print_status "PicoBrew vendor site not reachable, skipping user Z-series import."
+        fi
+    fi
+
     # Prompt to import PicoBrew community recipes (HTML snapshots)
     if [[ "$IMPORT_COMMUNITY" == "true" ]]; then
         echo -n "Do you want to fetch the PicoBrew community recipe library locally? [y/N]: "
