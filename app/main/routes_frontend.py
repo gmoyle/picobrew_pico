@@ -17,6 +17,8 @@ from .config import (MachineType, SessionType, recipe_path,
 from .frontend_common import render_template_with_defaults
 from .recipe_import import import_recipes
 from .recipe_parser import PicoBrewRecipe, ZymaticRecipe, ZSeriesRecipe
+import json as _json
+from pathlib import Path as _Path
 from .session_parser import (_paginate_sessions, list_session_files,
                              load_ferm_session, load_still_session, load_iSpindel_session, load_tilt_session,
                              dirty_sessions_since_clean, last_session_metadata, BrewSessionType,
@@ -190,6 +192,26 @@ def get_zymatic_recipes(include_archived=True):
     global zymatic_active_recipes
     return zymatic_recipes if include_archived else zymatic_active_recipes
 
+
+@main.route('/community_recipes')
+def community_recipes():
+    # List bundled snapshot recipes, starting with Z-series
+    base = current_app.config['BASE_PATH']
+    snapshot = {
+        'zseries': []
+    }
+    zdir = _Path(base).joinpath('recipes_snapshot/zseries')
+    if zdir.exists():
+        for f in sorted(zdir.glob('*.json')):
+            try:
+                data = _json.loads(f.read_text())
+                snapshot['zseries'].append({
+                    'name': data.get('name') or f.stem,
+                    'filename': f.name
+                })
+            except Exception:
+                snapshot['zseries'].append({'name': f.stem, 'filename': f.name})
+    return render_template_with_defaults('community_recipes.html', snapshot=snapshot)
 
 @main.route('/zseries_recipes')
 def _zseries_recipes():

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h2>Community / Snapshot Recipes</h2>
+  <p>This page lists recipe snapshots bundled with this server. You can import them during setup or manually copy them into the library.</p>
+
+  {% if snapshot.zseries and snapshot.zseries|length > 0 %}
+  <h3>Z-series ({{ snapshot.zseries|length }})</h3>
+  <ul>
+    {% for r in snapshot.zseries %}
+      <li>{{ r.name }} <small>({{ r.filename }})</small></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>No Z-series snapshot recipes bundled.</p>
+  {% endif %}
+</div>
+{% endblock %}
