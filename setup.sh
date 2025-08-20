@@ -237,6 +237,7 @@ show_usage() {
     echo "  -t, --test          Run tests after setup"
     echo "  -s, --setup-only    Only setup dependencies, don't start server"
     echo "  -v, --verbose       Verbose output"
+    echo "  --import-community  Prompt to import PicoBrew community recipes (HTML snapshots)"
     echo ""
     echo "Examples:"
     echo "  $0                    # Auto-setup and start server"
@@ -282,6 +283,7 @@ main() {
     RUN_TESTS=false
     SETUP_ONLY=false
     VERBOSE=false
+    IMPORT_COMMUNITY=false
     
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -307,6 +309,10 @@ main() {
                 ;;
             -v|--verbose)
                 VERBOSE=true
+                shift
+                ;;
+            --import-community)
+                IMPORT_COMMUNITY=true
                 shift
                 ;;
             *)
@@ -388,6 +394,23 @@ main() {
 
     # Start the server in background, verify health, run smoke, and open browser
     start_server_bg_and_verify "$PORT" "$HOST"
+
+    # Prompt to import PicoBrew community recipes (HTML snapshots)
+    if [[ "$IMPORT_COMMUNITY" == "true" ]]; then
+        echo -n "Do you want to fetch the PicoBrew community recipe library locally? [y/N]: "
+        read -r reply
+        if [[ "$reply" == "y" || "$reply" == "Y" ]]; then
+            print_status "Fetching PicoBrew public recipes (this may take a while)..."
+            create_and_use_venv
+            if python scripts/fetch_public_recipes.py; then
+                print_success "Community recipes snapshot saved to app/recipes/public_html"
+            else
+                print_warning "Failed to fetch community recipes. You can retry later via: python scripts/fetch_public_recipes.py"
+            fi
+        else
+            print_status "Skipping community recipe import."
+        fi
+    fi
 
     # Optional smoke test if script exists
     if [[ -f "scripts/smoke.sh" ]]; then
