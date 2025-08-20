@@ -432,6 +432,52 @@ main() {
         else
             print_status "PicoBrew vendor site not reachable, skipping user Z-series import."
         fi
+
+        # Offer to import user's Zymatic recipes (requires GUID and Product ID)
+        if curl -sS -k --max-time 5 http://137.117.17.70/ [0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m [0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m [0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m[0m; then
+            echo -n "Import YOUR Zymatic recipes? (requires GUID and Product ID) [y/N]: "
+            read -r reply
+            if [[ "$reply" == "y" || "$reply" == "Y" ]]; then
+                echo -n "Enter your Zymatic GUID: "
+                read -r ZY_GUID
+                echo -n "Enter your Zymatic Product ID: "
+                read -r ZY_PID
+                if [[ -n "$ZY_GUID" ]] && [[ -n "$ZY_PID" ]]; then
+                    create_and_use_venv
+                    if python scripts/import_zymatic_user.py --guid "$ZY_GUID" --product-id "$ZY_PID"; then
+                        print_success "Imported your Zymatic recipes into app/recipes/zymatic/"
+                    else
+                        print_warning "Failed to import Zymatic recipes. You can retry later via: python scripts/import_zymatic_user.py --guid GUID --product-id PID"
+                    fi
+                else
+                    print_warning "GUID or Product ID missing, skipping Zymatic import."
+                fi
+            else
+                print_status "Skipping user Zymatic recipe import."
+            fi
+        fi
+
+        # Offer to import a Pico recipe by RFID (requires UID and RFID)
+        echo -n "Import a Pico (Pico S/C/Pro) recipe by RFID now? [y/N]: "
+        read -r reply
+        if [[ "$reply" == "y" || "$reply" == "Y" ]]; then
+            echo -n "Enter your Pico device UID (32 chars): "
+            read -r PICO_UID
+            echo -n "Enter PicoPak RFID (14 chars): "
+            read -r PICO_RFID
+            if [[ -n "$PICO_UID" ]] && [[ -n "$PICO_RFID" ]]; then
+                create_and_use_venv
+                if python scripts/import_pico_by_rfid.py --uid "$PICO_UID" --rfid "$PICO_RFID"; then
+                    print_success "Imported Pico recipe into app/recipes/pico/"
+                else
+                    print_warning "Failed to import Pico recipe."
+                fi
+            else
+                print_warning "UID or RFID missing, skipping Pico import."
+            fi
+        else
+            print_status "Skipping Pico recipe import."
+        fi
     fi
 
     # Prompt to import PicoBrew community recipes (HTML snapshots)
