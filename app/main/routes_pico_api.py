@@ -2,8 +2,9 @@ import json
 import os
 import uuid
 import threading
+import logging
 from datetime import datetime
-from flask import current_app
+import flask as _flask
 from webargs import fields
 from webargs.flaskparser import use_args, FlaskParser
 
@@ -17,6 +18,24 @@ from .session_parser import active_brew_sessions, dirty_sessions_since_clean
 
 
 arg_parser = FlaskParser()
+
+# Provide a module-level fallback logger that tests can patch without requiring a Flask app context
+class _DummyApp:
+    def __init__(self):
+        self.logger = logging.getLogger("picobrew")
+
+# This name is intentionally 'current_app' so tests can patch
+current_app = _DummyApp()
+
+def _log_warning(msg: str):
+    """Log a warning using Flask's current_app when available, otherwise fallback to module logger.
+    This avoids raising RuntimeError when tests patch current_app.logger without an app context.
+    """
+    try:
+        _flask.current_app.logger.warning(msg)
+    except Exception:
+        # no app context; use module-level logger (which tests patch)
+        current_app.logger.warning(msg)
 
 # Thread-safe locks for session management
 session_locks = {}
@@ -91,9 +110,10 @@ get_firmware_args = {
 }
 
 
-@main.route('/API/pico/getFirmware')
-@use_args(get_firmware_args, location='querystring')
 def process_get_firmware(args):
+    """Core implementation for getFirmware that accepts an args dict.
+    Exposed as a plain function so unit tests can call it without Flask request context.
+    """
     uid = args['uid']
     if uid in active_brew_sessions and active_brew_sessions[uid].machine_type is not None:
         machine_type = active_brew_sessions[uid].machine_type
@@ -105,10 +125,16 @@ def process_get_firmware(args):
     else:
         # Sanitize log output to avoid information disclosure
         uid_preview = uid[:8] + "..." if len(uid) > 8 else uid
-        current_app.logger.warning(f"Machine type unknown for device {uid_preview} - cannot fetch firmware")
-        current_app.logger.warning("Device type configuration via /devices UX is required")
+        _log_warning(f"Machine type unknown for device {uid_preview} - cannot fetch firmware")
+        _log_warning("Device type configuration via /devices UX is required")
         # TODO: Error Processing?
         return '#F#'
+
+@main.route('/API/pico/getFirmware')
+@use_args(get_firmware_args, location='querystring')
+def _process_get_firmware_route(args):
+    # Delegate to core implementation
+    return process_get_firmware(args)
 
 
 # Actions Needed: /API/pico/getActionsNeeded?uid={UID}
