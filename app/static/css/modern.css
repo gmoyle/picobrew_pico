@@ -152,7 +152,20 @@ body.bg-dark {
 .btn-primary { background-color: var(--btn-primary-bg) !important; border-color: var(--btn-primary-border) !important; color: var(--btn-primary-text) !important; }
 .btn-success { background-color: var(--btn-success-bg) !important; border-color: var(--btn-success-border) !important; color: #fff !important; }
 .btn-danger { background-color: var(--btn-danger-bg) !important; border-color: var(--btn-danger-border) !important; color: #fff !important; }
-.btn-outline-light { color: var(--text) !important; border-color: var(--border) !important; }
+ .btn-outline-light { color: var(--text) !important; border-color: var(--border) !important; }
+/* Tame outline-light hover on dark to avoid bright flash */
+.btn-outline-light:hover,
+.btn-outline-light:focus {
+  background-color: rgba(255,255,255,0.08) !important;
+  border-color: rgba(255,255,255,0.18) !important;
+  color: var(--text) !important;
+}
+.btn-outline-light:active,
+.btn-outline-light.active {
+  background-color: rgba(255,255,255,0.12) !important;
+  border-color: rgba(255,255,255,0.22) !important;
+  color: var(--text) !important;
+}
 @media (max-width: 576px) { .btn { padding: 0.6rem 0.9rem; font-size: 0.95rem; } }
 
 /* Forms: inputs, selects, textareas */
