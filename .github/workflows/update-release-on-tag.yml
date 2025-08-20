@@ -12,10 +12,12 @@ jobs:
   move-release-branch:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout tag
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ github.ref }}
 
       - name: Configure Git
         run: |
@@ -29,8 +31,7 @@ jobs:
           # TAG_REF format: refs/tags/<tag>
           TAG_NAME=${TAG_REF#refs/tags/}
           echo "Moving release -> ${TAG_NAME}"
-          # Ensure the tag exists locally
-          git fetch --tags --prune
+          # We already checked out the tag via actions/checkout
           git checkout -B release "${TAG_NAME}"
           git push --force --set-upstream origin release
 
