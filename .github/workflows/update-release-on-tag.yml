@@ -1,0 +1,36 @@
+name: Update release branch on tag
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  move-release-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Move release to current tag
+        env:
+          TAG_REF: ${{ github.ref }}
+        run: |
+          # TAG_REF format: refs/tags/<tag>
+          TAG_NAME=${TAG_REF#refs/tags/}
+          echo "Moving release -> ${TAG_NAME}"
+          # Ensure the tag exists locally
+          git fetch --tags --prune
+          git checkout -B release "${TAG_NAME}"
+          git push --force --set-upstream origin release
+
