@@ -108,8 +108,31 @@ body.bg-dark {
 }
 .navbar-brand { font-weight: 600; letter-spacing: 0.2px; }
 .nav-link { color: var(--text-muted) !important; }
-.nav-link:hover, .dropdown-item:hover { color: var(--text) !important; background-color: rgba(255,255,255,0.06) !important; }
-.dropdown-menu.navbar-dark.bg-dark { background-color: #151922 !important; border: 1px solid var(--border); border-radius: 8px; }
+
+/* Dropdown menu readability on dark */
+.dropdown-menu.navbar-dark.bg-dark {
+  background-color: #1a1f2a !important; /* slightly lighter than header for contrast */
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+}
+.dropdown-menu.navbar-dark.bg-dark .dropdown-item {
+  color: var(--text-muted) !important;
+}
+.dropdown-menu.navbar-dark.bg-dark .dropdown-item:hover,
+.dropdown-menu.navbar-dark.bg-dark .dropdown-item:focus {
+  color: var(--text) !important;
+  background-color: rgba(255,255,255,0.10) !important;
+}
+.dropdown-menu.navbar-dark.bg-dark .dropdown-item.active,
+.dropdown-menu.navbar-dark.bg-dark .dropdown-item:active {
+  color: var(--text) !important;
+  background-color: rgba(255,255,255,0.14) !important;
+}
+.dropdown-menu.navbar-dark.bg-dark .dropdown-item.disabled,
+.dropdown-menu.navbar-dark.bg-dark .dropdown-item:disabled {
+  color: rgba(255,255,255,0.35) !important;
+}
 
 /* Ensure toggler icon is visible on dark navbars */
 .navbar-dark .navbar-toggler { border-color: rgba(255,255,255,0.15); }
@@ -120,7 +143,7 @@ body.bg-dark {
 /* Dropdown hit areas for touch */
 .dropdown-item { padding: 0.6rem 1rem; min-height: 44px; display: flex; align-items: center; }
 @media (max-width: 576px) {
-  .dropdown-menu.navbar-dark.bg-dark { min-width: 200px; }
+  .dropdown-menu.navbar-dark.bg-dark { min-width: 220px; }
 }
 
 /* Buttons: consistent sizes and stronger contrast */

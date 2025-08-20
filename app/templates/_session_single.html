@@ -1,17 +1,17 @@
 <div class="card bg-dark text-white-50">
     {% set chart_id = session.graph.chart_id %}
     <h5 class="card-header" id="h_{{chart_id}}">
-        <a class="collapsed" role="button" data-toggle="collapse" href="#c_{{chart_id}}" data-parent="#accordion" aria-expanded="false" aria-controls="c_{{chart_id}}">
+<a class="collapsed" role="button" data-bs-toggle="collapse" href="#c_{{chart_id}}" data-bs-parent="#accordion" aria-expanded="false" aria-controls="c_{{chart_id}}">
             {% if session_type == "brew" %}
             {{session.name}} (Brewed {{session.date}}{% if session.alias is defined and session.alias|length %} with {{session.alias}}{% endif %}) 
             {% else %}
             {{session.name}} on {{session.date}}
             {% endif %}
-            <button class="btn btn-sm btn-primary float-right mr-5" type="button" id="bdownload_{{session.filename}}"
+            <button class="btn btn-sm btn-primary float-end me-5" type="button" id="bdownload_{{session.filename}}"
                 onclick="event.stopPropagation();event.preventDefault();download_session('{{session.filename}}', '{{session_type}}');">
                 <i class="fas fa-download"></i>
             </button>
-            <button class="btn btn-sm btn-danger float-right mr-3" type="button" id="bdelete_{{session.filename}}"
+            <button class="btn btn-sm btn-danger float-end me-3" type="button" id="bdelete_{{session.filename}}"
                 onclick="event.stopPropagation();event.preventDefault();delete_file('{{session.filepath}}', '{{session_type}}');">
                 <i class="fas fa-trash"></i>
             </button>

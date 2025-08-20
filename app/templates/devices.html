@@ -24,10 +24,10 @@
   <div id="accordion">
     <div class="row bg-dark text-white-50">
       <div class="col-sm-12">
-        <a id="badd_device" class="collapsed btn btn-sm btn-success float-right mr-5" role="button" data-toggle="collapse"
-          href="#c_new_device" data-parent="#accordion" aria-expanded="false" aria-controls="c_new_device">
+<button id="badd_device" class="collapsed btn btn-sm btn-success float-end me-5" type="button" data-bs-toggle="collapse"
+          data-bs-target="#c_new_device" data-bs-parent="#accordion" aria-expanded="false" aria-controls="c_new_device">
           <i class="fas fa-plus"></i>  Add New Device
-      </a>
+      </button>
       </div>
       <form id="c_new_device" class="collapse card-body col-sm-5" aria-labelledby="badd_device" 
         action="/devices" method="POST">
@@ -92,13 +92,13 @@
       {% set alias = config['aliases'][machine_type][uid] %}
       <div class="card bg-dark text-white-50">
         <h5 class="card-header" id="h_{{uid}}">
-          <a class="collapsed" role="button" data-toggle="collapse" href="#c_{{uid}}" data-parent="#accordion" aria-expanded="false" aria-controls="c_{{uid}}">
+<a class="collapsed" role="button" data-bs-toggle="collapse" href="#c_{{uid}}" data-bs-parent="#accordion" aria-expanded="false" aria-controls="c_{{uid}}">
             {{alias}}
-            <button class="btn btn-sm btn-danger float-right mr-5" type="button" id="bdelete_{{uid}}"
+            <button class="btn btn-sm btn-danger float-end me-5" type="button" id="bdelete_{{uid}}"
                 onclick="event.stopPropagation();event.preventDefault();delete_device('{{machine_type}}', '{{uid}}');">
                 <i class="fas fa-trash"></i>
             </button>
-            <button class="btn btn-sm btn-success float-right mr-3" type="button" id="bsave_{{uid}}"
+            <button class="btn btn-sm btn-success float-end me-3" type="button" id="bsave_{{uid}}"
                 onclick="event.stopPropagation();event.preventDefault();save_device('{{uid}}');"
                 style="display:none;">
                 <i class="far fa-save fa-lg"></i>
