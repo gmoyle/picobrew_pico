@@ -7,6 +7,8 @@ env
 # project specific ignores
 logs/
 config.yaml
+server.out
+server.pid
 
 # ignore all machine_type recipe and session files
 app/recipes/*/*
