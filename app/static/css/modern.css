@@ -236,5 +236,4 @@ span.equipment-icon { max-width: 72px; }
 
 /* Misc: make small badges more legible */
 .badge { font-weight: 600; letter-spacing: 0.2px; }
-.badge.badge-secondary { color: #111 !important; }
 
