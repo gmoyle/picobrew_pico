@@ -1,7 +1,9 @@
 import json
 import uuid
 import os
+import threading
 from datetime import datetime
+from flask import current_app
 from webargs import fields
 from webargs.flaskparser import use_args, FlaskParser
 
@@ -10,11 +12,22 @@ from . import main
 from .config import brew_active_sessions_path
 from .model import MachineType, PicoBrewSession
 from .routes_frontend import get_zymatic_recipes
-from .session_parser import active_brew_sessions
+from .session_parser import active_brew_sessions, dirty_sessions_since_clean, get_machine_by_session
 
 
 arg_parser = FlaskParser()
 events = {}
+
+# Thread-safe locks for session management
+session_locks = {}
+session_locks_lock = threading.Lock()
+
+def get_session_lock(uid):
+    """Get or create a thread-safe lock for a specific device UID"""
+    with session_locks_lock:
+        if uid not in session_locks:
+            session_locks[uid] = threading.Lock()
+        return session_locks[uid]
 
 # usersetup: /API/usersetup?machine={}&admin=0
 #             Response: '\r\n#{0}/{1}|#' where {0} : Profile GUID, {1} = User Name
@@ -60,8 +73,10 @@ zymatic_firmware_check_args = {
 @use_args(zymatic_firmware_check_args, location='querystring')
 def process_zymatic_firmware_check(args):
     uid = args['machine']
-    if uid not in active_brew_sessions:
-        active_brew_sessions[uid] = PicoBrewSession(MachineType.ZYMATIC)
+    lock = get_session_lock(uid)
+    with lock:
+        if uid not in active_brew_sessions:
+            active_brew_sessions[uid] = PicoBrewSession(MachineType.ZYMATIC)
 
     return '\r\n#F#\r\n'
 
@@ -112,10 +127,12 @@ recover_session_args = {
 def process_recover_session(args):
     session = args['session']
     uid = get_machine_by_session(session)
-    if args['code'] == 0:
-        return '\r\n#{0}!#'.format(get_recipe_by_name(active_brew_sessions[uid].name))
-    else:
-        return '\r\n#{0}#'.format(active_brew_sessions[uid].recovery)
+    lock = get_session_lock(uid)
+    with lock:
+        if args['code'] == 0:
+            return '\r\n#{0}!#'.format(get_recipe_by_name(active_brew_sessions[uid].name))
+        else:
+            return '\r\n#{0}#'.format(active_brew_sessions[uid].recovery)
 
 
 # sessionerror: /API/sessionerror?machine={}&session={}&errorcode={}
@@ -161,64 +178,77 @@ def process_log_session(args):
     global events
     if args['code'] == 0:
         uid = args['machine']
-        if uid not in active_brew_sessions:
-            active_brew_sessions[uid] = PicoBrewSession(MachineType.ZYMATIC)
-        active_brew_sessions[uid].session = uuid.uuid4().hex[:32]
-        active_brew_sessions[uid].name = get_recipe_name_by_id(args['recipe'])
+        lock = get_session_lock(uid)
+        with lock:
+            if uid not in active_brew_sessions:
+                active_brew_sessions[uid] = PicoBrewSession(MachineType.ZYMATIC)
+            active_brew_sessions[uid].session = uuid.uuid4().hex[:32]
+            active_brew_sessions[uid].name = get_recipe_name_by_id(args['recipe'])
 
-        # replace spaces and '#' with other character sequences
-        encoded_recipe = active_brew_sessions[uid].name.replace(' ', '_').replace("#", "%23")
-        filename = '{0}#{1}#{2}#{3}.json'.format(datetime.now().strftime('%Y%m%d_%H%M%S'), uid, active_brew_sessions[uid].session, encoded_recipe)
-        active_brew_sessions[uid].filepath = brew_active_sessions_path().joinpath(filename)
+            # replace spaces and '#' with other character sequences
+            encoded_recipe = active_brew_sessions[uid].name.replace(' ', '_').replace("#", "%23")
+            filename = '{0}#{1}#{2}#{3}.json'.format(datetime.now().strftime('%Y%m%d_%H%M%S'), uid, active_brew_sessions[uid].session, encoded_recipe)
+            active_brew_sessions[uid].filepath = brew_active_sessions_path().joinpath(filename)
 
-        active_brew_sessions[uid].file = open(active_brew_sessions[uid].filepath, 'w')
-        active_brew_sessions[uid].file.write('[')
-        active_brew_sessions[uid].file.flush()
-        ret = '\r\n#{0}#'.format(active_brew_sessions[uid].session)
+            active_brew_sessions[uid].file = open(active_brew_sessions[uid].filepath, 'w')
+            active_brew_sessions[uid].file.write('[')
+            active_brew_sessions[uid].file.flush()
+            ret = '\r\n#{0}#'.format(active_brew_sessions[uid].session)
     elif args['code'] == 1:
         session = args['session']
         if session not in events:
             events[session] = []
         events[session].append(args['data'])
         uid = get_machine_by_session(session)
-        active_brew_sessions[uid].step = args['data']
+        lock = get_session_lock(uid)
+        with lock:
+            active_brew_sessions[uid].step = args['data']
     elif args['code'] == 2:
         session = args['session']
         uid = get_machine_by_session(session)
-        temps = [int(temp[2:]) for temp in args['data'].split('|')]
-        session_data = {'time': ((datetime.utcnow() - datetime(1970, 1, 1)).total_seconds() * 1000),
-                        'wort': temps[0],
-                        'heat1': temps[1],
-                        'board': temps[2],
-                        'heat2': temps[3],
-                        'step': active_brew_sessions[uid].step,
-                        'recovery': args['step'],
-                        'state': args['state'],
-                        }
-        event = None
-        if session in events and len(events[session]) > 0:
-            if len(events[session]) > 1:
-                print('DEBUG: Zymatic events > 1 - size = {}'.format(len(events[session])))
-            event = events[session].pop(0)
-            session_data.update({'event': event})
-        active_brew_sessions[uid].data.append(session_data)
-        active_brew_sessions[uid].recovery = args['step']
-        graph_update = json.dumps({'time': session_data['time'],
-                                   'data': temps,
-                                   'session': active_brew_sessions[uid].name,
-                                   'step': active_brew_sessions[uid].step,
-                                   'event': event,
-                                   })
+        lock = get_session_lock(uid)
+        
+        with lock:
+            temps = [int(temp[2:]) for temp in args['data'].split('|')]
+            session_data = {'time': ((datetime.utcnow() - datetime(1970, 1, 1)).total_seconds() * 1000),
+                            'wort': temps[0],
+                            'heat1': temps[1],
+                            'board': temps[2],
+                            'heat2': temps[3],
+                            'step': active_brew_sessions[uid].step,
+                            'recovery': args['step'],
+                            'state': args['state'],
+                            }
+            event = None
+            if session in events and len(events[session]) > 0:
+                if len(events[session]) > 1:
+                    print('DEBUG: Zymatic events > 1 - size = {}'.format(len(events[session])))
+                event = events[session].pop(0)
+                session_data.update({'event': event})
+            active_brew_sessions[uid].data.append(session_data)
+            active_brew_sessions[uid].recovery = args['step']
+            
+            graph_update = json.dumps({'time': session_data['time'],
+                                       'data': temps,
+                                       'session': active_brew_sessions[uid].name,
+                                       'step': active_brew_sessions[uid].step,
+                                       'event': event,
+                                       })
+            
+            active_brew_sessions[uid].file.write('\n\t{},'.format(json.dumps(session_data)))
+            active_brew_sessions[uid].file.flush()
+        
+        # Emit socket update outside of lock to avoid blocking
         socketio.emit('brew_session_update|{}'.format(uid), graph_update)
-        active_brew_sessions[uid].file.write('\n\t{},'.format(json.dumps(session_data)))
-        active_brew_sessions[uid].file.flush()
     else:
         session = args['session']
         uid = get_machine_by_session(session)
-        active_brew_sessions[uid].file.seek(0, os.SEEK_END)
-        active_brew_sessions[uid].file.seek(active_brew_sessions[uid].file.tell() - 1, os.SEEK_SET)  # Remove trailing , from last data set
-        active_brew_sessions[uid].file.write('\n]\n')
-        active_brew_sessions[uid].cleanup()
+        lock = get_session_lock(uid)
+        with lock:
+            active_brew_sessions[uid].file.seek(0, os.SEEK_END)
+            active_brew_sessions[uid].file.seek(active_brew_sessions[uid].file.tell() - 1, os.SEEK_SET)  # Remove trailing , from last data set
+            active_brew_sessions[uid].file.write('\n]\n')
+            active_brew_sessions[uid].cleanup()
     return ret
 
 

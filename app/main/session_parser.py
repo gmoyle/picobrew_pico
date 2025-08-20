@@ -1,4 +1,5 @@
 import json
+import threading
 from datetime import datetime, timedelta
 from dateutil import tz
 from enum import Enum
@@ -12,6 +13,9 @@ from .config import (brew_active_sessions_path, ferm_active_sessions_path, still
 from .model import PicoBrewSession, PicoFermSession, PicoStillSession, iSpindelSession, TiltSession
 
 file_glob_pattern = "[!._]*.json"
+
+# Thread-safe locks for session management
+session_restore_lock = threading.Lock()
 
 active_brew_sessions = {}
 active_ferm_sessions = {}

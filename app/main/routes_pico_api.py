@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+import threading
 from datetime import datetime
 from flask import current_app
 from webargs import fields
@@ -17,6 +18,17 @@ from .session_parser import active_brew_sessions, dirty_sessions_since_clean
 
 arg_parser = FlaskParser()
 
+# Thread-safe locks for session management
+session_locks = {}
+session_locks_lock = threading.Lock()
+
+def get_session_lock(uid):
+    """Get or create a thread-safe lock for a specific device UID"""
+    with session_locks_lock:
+        if uid not in session_locks:
+            session_locks[uid] = threading.Lock()
+        return session_locks[uid]
+
 
 # Register: /API/pico/register?uid={UID}
 # Response: '#{0}#\r\n' where {0} : T = Registered, F = Not Registered
@@ -29,8 +41,10 @@ register_args = {
 @use_args(register_args, location='querystring')
 def process_register(args):
     uid = args['uid']
-    if uid not in active_brew_sessions:
-        active_brew_sessions[uid] = PicoBrewSession()
+    lock = get_session_lock(uid)
+    with lock:
+        if uid not in active_brew_sessions:
+            active_brew_sessions[uid] = PicoBrewSession()
     return '#T#\r\n'
 
 
@@ -89,8 +103,10 @@ def process_get_firmware(args):
         f.close()
         return '{}'.format(fw)
     else:
-        current_app.logger.warning(active_brew_sessions)
-        current_app.logger.warning('machine_type unknown - can not fetch firmware. Configuration of the device type via /devices UX is required.')
+        # Sanitize log output to avoid information disclosure
+        uid_preview = uid[:8] + "..." if len(uid) > 8 else uid
+        current_app.logger.warning(f"Machine type unknown for device {uid_preview} - cannot fetch firmware")
+        current_app.logger.warning("Device type configuration via /devices UX is required")
         # TODO: Error Processing?
         return '#F#'
 
@@ -206,33 +222,42 @@ log_args = {
 @use_args(log_args, location='querystring')
 def process_log(args):
     uid = args['uid']
-    if uid not in active_brew_sessions or active_brew_sessions[uid].name == 'Waiting To Brew':
-        create_new_session(uid, args['sesId'], args['sesType'])
-    session_data = {'time': ((datetime.utcnow() - datetime(1970, 1, 1)).total_seconds() * 1000),
-                    'timeLeft': args['timeLeft'],
-                    'step': args['step'],
-                    'wort': args['wort'],
-                    'therm': args['therm'],
-                    }
-    event = None
-    if 'event' in args:
-        event = args['event']
-        session_data.update({'event': event})
-    active_brew_sessions[uid].step = args['step']
-    active_brew_sessions[uid].data.append(session_data)
-    graph_update = json.dumps({'time': session_data['time'],
-                               'data': [session_data['wort'], session_data['therm']],
-                               'session': active_brew_sessions[uid].name,
-                               'step': active_brew_sessions[uid].step,
-                               'event': event,
-                               })
+    lock = get_session_lock(uid)
+    
+    with lock:
+        if uid not in active_brew_sessions or active_brew_sessions[uid].name == 'Waiting To Brew':
+            create_new_session(uid, args['sesId'], args['sesType'])
+        
+        session_data = {'time': ((datetime.utcnow() - datetime(1970, 1, 1)).total_seconds() * 1000),
+                        'timeLeft': args['timeLeft'],
+                        'step': args['step'],
+                        'wort': args['wort'],
+                        'therm': args['therm'],
+                        }
+        event = None
+        if 'event' in args:
+            event = args['event']
+            session_data.update({'event': event})
+        
+        active_brew_sessions[uid].step = args['step']
+        active_brew_sessions[uid].data.append(session_data)
+        
+        graph_update = json.dumps({'time': session_data['time'],
+                                   'data': [session_data['wort'], session_data['therm']],
+                                   'session': active_brew_sessions[uid].name,
+                                   'step': active_brew_sessions[uid].step,
+                                   'event': event,
+                                   })
+        
+        if 'complete' in active_brew_sessions[uid].step.lower():
+            active_brew_sessions[uid].file.write('\n\t{}\n]'.format(json.dumps(session_data)))
+            active_brew_sessions[uid].cleanup()
+        else:
+            active_brew_sessions[uid].file.write('\n\t{},'.format(json.dumps(session_data)))
+            active_brew_sessions[uid].file.flush()
+    
+    # Emit socket update outside of lock to avoid blocking
     socketio.emit('brew_session_update|{}'.format(uid), graph_update)
-    if 'complete' in active_brew_sessions[uid].step.lower():
-        active_brew_sessions[uid].file.write('\n\t{}\n]'.format(json.dumps(session_data)))
-        active_brew_sessions[uid].cleanup()
-    else:
-        active_brew_sessions[uid].file.write('\n\t{},'.format(json.dumps(session_data)))
-        active_brew_sessions[uid].file.flush()
     return '\r\n\r\n'
 
 
@@ -287,26 +312,30 @@ def get_recipe_list():
 
 
 def create_new_session(uid, sesId, sesType):
-    if uid not in active_brew_sessions:
-        active_brew_sessions[uid] = PicoBrewSession()
-    if sesType == 0:
-        active_brew_sessions[uid].name = get_recipe_name_by_id(sesId)
-    elif sesType in PICO_SESSION:
-        active_brew_sessions[uid].name = PICO_SESSION[sesType]
-    else:
-        active_brew_sessions[uid].name = 'Unknown Session ({})'.format(sesType)
+    lock = get_session_lock(uid)
+    with lock:
+        if uid not in active_brew_sessions:
+            active_brew_sessions[uid] = PicoBrewSession()
+        if sesType == 0:
+            active_brew_sessions[uid].name = get_recipe_name_by_id(sesId)
+        elif sesType in PICO_SESSION:
+            active_brew_sessions[uid].name = PICO_SESSION[sesType]
+        else:
+            active_brew_sessions[uid].name = 'Unknown Session ({})'.format(sesType)
 
-    # replace spaces and '#' with other character sequences
-    encoded_recipe = active_brew_sessions[uid].name.replace(' ', '_').replace("#", "%23")
-    filename = '{0}#{1}#{2}#{3}.json'.format(datetime.now().strftime('%Y%m%d_%H%M%S'), uid, sesId, encoded_recipe)
-    active_brew_sessions[uid].filepath = brew_active_sessions_path().joinpath(filename)
-    active_brew_sessions[uid].file = open(active_brew_sessions[uid].filepath, 'w')
-    active_brew_sessions[uid].file.write('[')
+        # replace spaces and '#' with other character sequences
+        encoded_recipe = active_brew_sessions[uid].name.replace(' ', '_').replace("#", "%23")
+        filename = '{0}#{1}#{2}#{3}.json'.format(datetime.now().strftime('%Y%m%d_%H%M%S'), uid, sesId, encoded_recipe)
+        active_brew_sessions[uid].filepath = brew_active_sessions_path().joinpath(filename)
+        active_brew_sessions[uid].file = open(active_brew_sessions[uid].filepath, 'w')
+        active_brew_sessions[uid].file.write('[')
 
 
 def cleanup_old_session(uid):
-    if uid in active_brew_sessions and active_brew_sessions[uid].file:
-        active_brew_sessions[uid].file.seek(0, os.SEEK_END)
-        active_brew_sessions[uid].file.seek(active_brew_sessions[uid].file.tell() - 1, os.SEEK_SET)  # Remove trailing , from last data set
-        active_brew_sessions[uid].file.write('\n]\n')
-        active_brew_sessions[uid].cleanup()
+    lock = get_session_lock(uid)
+    with lock:
+        if uid in active_brew_sessions and active_brew_sessions[uid].file:
+            active_brew_sessions[uid].file.seek(0, os.SEEK_END)
+            active_brew_sessions[uid].file.seek(active_brew_sessions[uid].file.tell() - 1, os.SEEK_SET)  # Remove trailing , from last data set
+            active_brew_sessions[uid].file.write('\n]\n')
+            active_brew_sessions[uid].cleanup()
