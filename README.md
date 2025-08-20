@@ -45,6 +45,31 @@ Allows for full control of the PicoBrew Pico S/C/Pro & Zymatic models.  Shout ou
 ## Installation
 ![GitHub tag (latest SemVer pre-release)](https://img.shields.io/github/v/tag/chiefwigms/picobrew_pico?include_prereleases&sort=semver)
 
+### Quick Start (Local)
+On macOS/Linux:
+
+```
+chmod +x setup.sh
+./setup.sh
+```
+
+On Windows:
+
+```
+setup.bat
+```
+
+The setup script will:
+- Create and use a Python virtual environment (.venv)
+- Install all required dependencies
+- Prepare config and required directories
+- Start the server in the background and verify health
+- Run a smoke test against key endpoints
+- Open your default web browser to the running server
+
+See SETUP_README.md for more details and options.
+
+### Raspberry Pi Image
 Refer to the [Releases Page](https://github.com/chiefwigms/picobrew_pico/releases) for steps to get up and running with your own Pico server with a Raspberry Pi device (recommended models include: Raspberry Pi Zero-W or Raspberry Pi 4).
 
 By default the hostname of the RaspberryPi device will be "raspberrypi" and is discoverable on your local network along with the "samba" (or network shares) for sessions and recipes. You can use these to view the files created by the server during interactions with the user and connected devices.

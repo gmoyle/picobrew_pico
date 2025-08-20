@@ -21,11 +21,14 @@ setup.bat
 
 That's it! The script will:
 1. ✅ Check if Python is installed
-2. ✅ Install all required dependencies
-3. ✅ Create necessary directories
-4. ✅ Set up configuration files
-5. ✅ Find an available port automatically
-6. ✅ Start the server
+2. ✅ Create and activate a virtual environment (.venv)
+3. ✅ Install all required dependencies (and pytest)
+4. ✅ Create necessary directories
+5. ✅ Set up configuration files
+6. ✅ Find an available port automatically
+7. ✅ Start the server in the background and verify /health
+8. ✅ Run a smoke test (scripts/smoke.sh) against key endpoints
+9. ✅ Open your default web browser to the server
 
 ## What the Setup Scripts Do
 
@@ -44,7 +47,8 @@ That's it! The script will:
 - **Root Handling**: Uses port 80 if available, falls back to 8080+ if not
 - **Conflict Resolution**: Avoids port conflicts automatically
 
-## Command Line Options
+### Command Line Options
+Note: The setup script automatically opens your default browser to the running server.
 
 ### Basic Usage
 ```bash
@@ -93,6 +97,13 @@ chmod +x setup.sh
 **"pip not found":**
 - The script checks for both `pip` and `pip3`
 - Install pip: `python3 -m ensurepip --upgrade`
+
+### Smoke Test Script
+You can run the smoke test manually at any time:
+
+```bash
+bash scripts/smoke.sh http://localhost:8080 12345678901234567890123456789012
+```
 
 ### Manual Setup (if scripts fail)
 
